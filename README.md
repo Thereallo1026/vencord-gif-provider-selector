@@ -2,6 +2,14 @@
 
 A Vencord userplugin that adds a dropdown to the GIF picker, allowing you to switch between Tenor, Giphy, and Klipy as your GIF search provider.
 
+## Why this plugin exists
+
+The Tenor API is shutting down in June 2025. Discord is currently running an experiment to test whether users prefer Giphy or Klipy as a replacement, but this experiment is only available to a random subset of users.
+
+If you are not part of the experiment, you are stuck with whatever provider Discord defaults to. This plugin gives you the choice regardless of whether you have access to the experiment.
+
+If Discord eventually settles on a single provider without giving users a choice, this plugin will remain useful. If they add a native provider selector, this plugin becomes unnecessary.
+
 ## Features
 
 - Adds a provider selector dropdown next to the search bar in the GIF picker
@@ -31,10 +39,6 @@ pnpm build
 ## Usage
 
 Open the GIF picker in Discord. You will see a dropdown next to the search bar. Select your preferred provider (Tenor, Giphy, or Klipy) and search for GIFs.
-
-## Note
-
-Discord is experimenting with GIF provider selection internally, so this functionality may eventually become a native Discord feature. This plugin provides the feature now for those who want it.
 
 ## License
 
