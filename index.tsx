@@ -160,7 +160,7 @@ function unpatchXHR() {
 export default definePlugin({
     name: "GifProviderSelector",
     description: "Adds a dropdown to select between Giphy, Klipy, and Tenor for GIF searches",
-    authors: [{ name: "Thereallo", id: 896388612764090448 }],
+    authors: [{ name: "Thereallo", id: 896388612764090448n }],
     settings,
 
     /**
@@ -207,22 +207,13 @@ export default definePlugin({
         },
 
         // Patch 2: Inject ProviderSelector into the GIF picker header
-        //
-        // Original: return(0,r.jsx)(l.IWV,{...autoFocus:!0})
-        // After:    return $self.wrapWithSelector((0,r.jsx)(l.IWV,{...autoFocus:!0}))
-        //
-        // We use capture groups:
-        // $1 = "return"
-        // $2 = "(0,r.jsx)(l.IWV,{...autoFocus:!0})"
         {
             find: "renderHeaderContent()",
             replacement: {
-                // Match the return statement with the IWV (SearchBar) component
-                // Capture groups:
-                // $1 = "return"
-                // $2 = the jsx call "(0,r.jsx)(l.IWV,{...})"
-                match: /(return)(\(0,i\.jsx\)\(\i\.IWV,\{[^}]+autoFocus:!0\}\))/,
-                replace: "$1 $self.wrapWithSelector($2)"
+                // Match: return(0,r.jsx)(l.IWV,{...autoFocus:!0})
+                // Capture the jsx call without the return keyword
+                match: /return(\(0,\i\.jsx\)\(\i\.IWV,\{.+?autoFocus:!0\}\))/,
+                replace: "return $self.wrapWithSelector($1)"
             }
         }
     ],
