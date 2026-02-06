@@ -4,7 +4,7 @@ A Vencord userplugin that adds a dropdown to the GIF picker, allowing you to swi
 
 ## Why this plugin exists
 
-The Tenor API is shutting down in June 2025. Discord is currently running an experiment to test whether users prefer Giphy or Klipy as a replacement, but this experiment is only available to a random subset of users.
+The Tenor API is shutting down in June 2026. Discord is currently running an experiment to test whether users prefer Giphy or Klipy as a replacement, but this experiment is only available to a random subset of users.
 
 If you are not part of the experiment, you are stuck with whatever provider Discord defaults to. This plugin gives you the choice regardless of whether you have access to the experiment.
 
