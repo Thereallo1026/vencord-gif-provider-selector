@@ -207,7 +207,7 @@ export default definePlugin({
     /**
      * Patches to inject our component into the GIF picker header.
      *
-     * Based on actual Discord code (Module 855057):
+     * Based on Discord's GIF picker header code:
      *
      * renderHeaderContent(){
      *   ...
@@ -219,8 +219,9 @@ export default definePlugin({
      *   }
      * }
      *
-     * Capture "return" separately from the JSX call, then wrap
-     * only the JSX call with our wrapper function.
+     * Discord changes the mangled component name and occasionally inserts
+     * extra props, so the injection matches the search-bar props instead of a
+     * specific component export or final prop.
      */
     patches: [
         // Patch 1: change placeholder
@@ -251,9 +252,9 @@ export default definePlugin({
         {
             find: "renderHeaderContent()",
             replacement: {
-                // match: return(0,r.jsx)(l.IWV,{...autoFocus:!0})
+                // match: return(0,r.jsx)(l.IWV,{...search bar props...})
                 // capture the jsx call without the return keyword
-                match: /return(\(0,\i\.jsx\)\(\i\.IWV,\{.+?autoFocus:!0\}\))/,
+                match: /return(\(0,\i\.jsx\)\(\i\.\i,\{(?=[^}]*query:\i)(?=[^}]*onChange:this\.handleChangeQuery)(?=[^}]*onClear:this\.handleClearQuery)(?=[^}]*ref:this\.props\.searchBarRef)[^}]*\}\))/,
                 replace: "return $self.wrapWithSelector($1, this)"
             }
         }
