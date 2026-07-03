@@ -8,18 +8,26 @@
 
 import type { DiscordGif, TenorCategoriesResponse, TenorMediaFormat, TenorResult, TenorSearchResponse } from "./types";
 
-const apiBase = "https://api.thereallo.dev/v1/tenor";
+const apiBase = "https://api.thereallo.dev/v1/tenor/keyboard";
 const anonIdStorageKey = "vc-gif-provider-selector-tenor-anon-id";
 const defaultLocale = "en-US";
 
 const transparentGifFormats = ["gif_transparent", "tinygif_transparent", "nanogif_transparent"] as const;
 const transparentPreviewFormats = ["nanogif_transparent", "tinygif_transparent", "gif_transparent"] as const;
 const videoFormats = ["webm", "tinywebm", "mp4", "tinymp4"] as const;
-const transparentMediaFilter = [
+const mediaFilter = [
     "webm",
     "tinywebm",
     "mp4",
     "tinymp4",
+    "gif",
+    "mediumgif",
+    "tinygif",
+    "nanogif",
+    "gifpreview",
+    "tinygifpreview",
+    "nanogifpreview",
+    "webp",
     "gif_transparent",
     "tinygif_transparent",
     "nanogif_transparent",
@@ -72,13 +80,6 @@ function makeApiUrl(path: string, params: Record<string, number | string | undef
     }
 
     return url.toString();
-}
-
-function withAnonId(params: Record<string, string | undefined>): Record<string, string | undefined> {
-    return {
-        anon_id: getAnonId(),
-        ...params
-    };
 }
 
 async function request<T>(path: string, params: Record<string, number | string | undefined>): Promise<T> {
@@ -161,10 +162,9 @@ async function gifList(path: "/featured" | "/search", query: string | undefined,
     const data = await request<TenorSearchResponse>(path, {
         locale: normalizeLocale(locale),
         contentfilter: "low",
-        searchfilter: "sticker,-static",
         q: query,
         limit: limit ?? 100,
-        media_filter: transparentMediaFilter
+        media_filter: mediaFilter
     });
 
     return (data.results ?? [])
@@ -200,9 +200,8 @@ export async function trending(mediaFormat: string, locale: string): Promise<{ c
         request<TenorSearchResponse>("/featured", {
             locale: normalizeLocale(locale),
             contentfilter: "low",
-            searchfilter: "sticker,-static",
             limit: 20,
-            media_filter: transparentMediaFilter
+            media_filter: mediaFilter
         })
     ]);
 
@@ -223,22 +222,4 @@ export async function suggestions(query: string, locale: string, limit = 5): Pro
     });
 
     return data.results ?? [];
-}
-
-export async function recordShare(id: string, q: string): Promise<void> {
-    const response = await fetch(`${apiBase}/registershare`, {
-        method: "POST",
-        headers: {
-            "Content-Type": "application/json"
-        },
-        body: JSON.stringify(withAnonId({
-            id,
-            q,
-            index: "0",
-            source_id: "",
-            original_query: q
-        }))
-    });
-
-    if (!response.ok) throw new Error(`Tenor req failed with status ${response.status}`);
 }

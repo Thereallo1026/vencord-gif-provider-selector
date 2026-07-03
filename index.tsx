@@ -348,10 +348,8 @@ export default definePlugin({
                 );
                 break;
             case "/gifs/select":
-                response = asRestResponse(Tenor.recordShare(
-                    getRestQueryString(request.body, "id"),
-                    getRestQueryString(request.body, "q")
-                ).then(() => null));
+                // share tracking is not proxied, just acknowledge req
+                response = Promise.resolve(makeRestResponse(null));
                 break;
             default:
                 return null;
@@ -375,6 +373,6 @@ export default definePlugin({
             });
         }
 
-        return Tenor.recordShare(id, query).then(() => makeRestResponse(null));
+        return Promise.resolve(makeRestResponse(null));
     }
 });
