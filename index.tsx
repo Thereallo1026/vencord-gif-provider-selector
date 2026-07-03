@@ -1,7 +1,7 @@
 /*
- * Vencord, a Discord client mod
- * Copyright (c) 2025 Vendicated and contributors
- * SPDX-License-Identifier: GPL-3.0-or-later
+ * Vencord userplugin
+ * Copyright (c) 2026 Thereallo
+ * SPDX-License-Identifier: AGPL-3.0-or-later
  */
 
 import "./style.css";
@@ -11,19 +11,20 @@ import ErrorBoundary from "@components/ErrorBoundary";
 import definePlugin, { OptionType } from "@utils/types";
 import { type React, Select, useEffect } from "@webpack/common";
 
-// consts and types
-const PROVIDERS = {
-    TENOR: "tenor",
-    GIPHY: "giphy",
-    KLIPY: "klipy"
+import * as Tenor from "./tenor";
+import type { GifPickerInstance, Provider, RestApi, RestComplete, RestRequest, RestResponse, WrapperProps } from "./types";
+
+// consts
+export const providers = {
+    tenor: "tenor",
+    giphy: "giphy",
+    klipy: "klipy"
 } as const;
 
-type Provider = typeof PROVIDERS[keyof typeof PROVIDERS];
-
-const PROVIDER_OPTIONS = [
-    { label: "Tenor", value: PROVIDERS.TENOR },
-    { label: "Giphy", value: PROVIDERS.GIPHY },
-    { label: "Klipy", value: PROVIDERS.KLIPY }
+const providerOptions = [
+    { label: "Tenor", value: providers.tenor },
+    { label: "Giphy", value: providers.giphy },
+    { label: "Klipy", value: providers.klipy }
 ];
 
 export const settings = definePluginSettings({
@@ -31,16 +32,16 @@ export const settings = definePluginSettings({
         type: OptionType.SELECT,
         description: "Default GIF provider to use for searches",
         options: [
-            { label: "Tenor", value: PROVIDERS.TENOR, default: true },
-            { label: "Giphy", value: PROVIDERS.GIPHY },
-            { label: "Klipy", value: PROVIDERS.KLIPY }
+            { label: "Tenor", value: providers.tenor, default: true },
+            { label: "Giphy", value: providers.giphy },
+            { label: "Klipy", value: providers.klipy }
         ] as const
     }
 });
 
 
 function ProviderSelector({ instance }: { instance?: GifPickerInstance }) {
-    const currentProvider = settings.use(["provider"]).provider ?? PROVIDERS.TENOR;
+    const currentProvider = settings.use(["provider"]).provider ?? providers.tenor;
 
     const handleClick = (e: React.MouseEvent) => {
         // prevent click from bubbling up and closing the GIF picker
@@ -56,7 +57,7 @@ function ProviderSelector({ instance }: { instance?: GifPickerInstance }) {
             if (typeof (instance as any).search === "function") {
                 // clear search to invalidate cache, then immediately restore
                 (instance as any).search("");
-                
+
                 setTimeout(() => {
                     (instance as any).search(currentQuery);
                 }, 0);
@@ -71,7 +72,7 @@ function ProviderSelector({ instance }: { instance?: GifPickerInstance }) {
             onMouseDown={handleClick}
         >
             <Select
-                options={PROVIDER_OPTIONS}
+                options={providerOptions}
                 isSelected={(v: string) => v === currentProvider}
                 select={handleSelect}
                 serialize={(v: string) => v}
@@ -80,24 +81,6 @@ function ProviderSelector({ instance }: { instance?: GifPickerInstance }) {
             />
         </div>
     );
-}
-
-
-interface GifPickerInstance {
-    props: {
-        query?: string;
-    };
-    state: {
-        searchQuery?: string;
-        resultType?: string;
-    };
-    search?: (query: string) => void;
-    forceUpdate?: () => void;
-}
-
-interface WrapperProps {
-    searchBar: React.ReactNode;
-    instance?: GifPickerInstance;
 }
 
 function HeaderWrapper({ searchBar, instance }: WrapperProps) {
@@ -109,7 +92,7 @@ function HeaderWrapper({ searchBar, instance }: WrapperProps) {
             );
             input?.focus();
         }, 0);
-        
+
         return () => clearTimeout(timer);
     }, []);
 
@@ -123,79 +106,31 @@ function HeaderWrapper({ searchBar, instance }: WrapperProps) {
     );
 }
 
-let originalFetch: typeof fetch;
-let originalXHROpen: typeof XMLHttpRequest.prototype.open;
-
 function getProvider(): Provider {
-    return settings.store.provider ?? PROVIDERS.TENOR;
+    return settings.store.provider ?? providers.tenor;
 }
 
-function patchUrl(url: string): string {
-    if (url.includes("/gifs/search") && url.includes("provider=")) {
-        const provider = getProvider();
-        const newUrl = url.replace(/provider=\w+/, `provider=${provider}`);
-        if (newUrl !== url) {
-            return newUrl;
-        }
-    }
-    return url;
-}
-
-function patchFetch() {
-    originalFetch = window.fetch;
-
-    window.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
-        let url: string;
-
-        if (typeof input === "string") {
-            url = input;
-        } else if (input instanceof URL) {
-            url = input.toString();
-        } else if (input instanceof Request) {
-            url = input.url;
-        } else {
-            return originalFetch.call(window, input, init);
-        }
-
-        const patchedUrl = patchUrl(url);
-        if (patchedUrl !== url) {
-            if (input instanceof Request) {
-                return originalFetch.call(window, new Request(patchedUrl, input), init);
-            }
-            return originalFetch.call(window, patchedUrl, init);
-        }
-
-        return originalFetch.call(window, input, init);
+function makeRestResponse<T>(body: T): RestResponse<T> {
+    return {
+        body,
+        headers: {},
+        ok: true,
+        status: 200,
+        text: JSON.stringify(body)
     };
 }
 
-function patchXHR() {
-    originalXHROpen = XMLHttpRequest.prototype.open;
-
-    XMLHttpRequest.prototype.open = function (
-        method: string,
-        url: string | URL,
-        async: boolean = true,
-        user?: string | null,
-        password?: string | null
-    ) {
-        const urlStr = url.toString();
-        const patchedUrl = patchUrl(urlStr);
-
-        return originalXHROpen.call(this, method, patchedUrl, async, user, password);
-    };
+function toLimit(limit: unknown): number | undefined {
+    return typeof limit === "number" ? limit : undefined;
 }
 
-function unpatchFetch() {
-    if (originalFetch) {
-        window.fetch = originalFetch;
-    }
+function getRestQueryString(query: Record<string, unknown> | undefined, key: string, fallback = ""): string {
+    const value = query?.[key];
+    return typeof value === "string" ? value : fallback;
 }
 
-function unpatchXHR() {
-    if (originalXHROpen) {
-        XMLHttpRequest.prototype.open = originalXHROpen;
-    }
+function asRestResponse<T>(promise: Promise<T>): Promise<RestResponse<T>> {
+    return promise.then(makeRestResponse);
 }
 
 export default definePlugin({
@@ -224,8 +159,7 @@ export default definePlugin({
      * specific component export or final prop.
      */
     patches: [
-        // Patch 1: change placeholder
-        // replace all provider-specific search text
+        // patch 1: change placeholder
         {
             find: "Search Tenor",
             replacement: {
@@ -248,7 +182,7 @@ export default definePlugin({
             }
         },
 
-        // Patch 2: inject ProviderSelector into the GIF picker header
+        // patch 2: inject ProviderSelector into the GIF picker header
         {
             find: "renderHeaderContent()",
             replacement: {
@@ -257,6 +191,46 @@ export default definePlugin({
                 match: /return(\(0,\i\.jsx\)\(\i\.\i,\{(?=[^}]*query:\i)(?=[^}]*onChange:this\.handleChangeQuery)(?=[^}]*onClear:this\.handleClearQuery)(?=[^}]*ref:this\.props\.searchBarRef)[^}]*\}\))/,
                 replace: "return $self.wrapWithSelector($1, this)"
             }
+        },
+
+        // patch 3: route GIF picker actions through the selected provider
+        {
+            find: "GIFS_SEARCH,query",
+            replacement: [
+                {
+                    match: /(\i\.Bo)\.get\(\{url:(\i\.Rsh\.GIFS_SEARCH),query:\{q:(\i),media_format:(\i\.A\.getSelectedFormat\(\)),provider:\(0,\i\.cf\)\(\),locale:(\i\.default\.locale),limit:(\i)\},oldFormErrors:!0,rejectWithError:!0\}\)/,
+                    replace: "$self.getSearch($1,$2,$3,$4,$5,$6)"
+                },
+                {
+                    match: /(\i\.Bo)\.get\(\{url:(\i\.Rsh\.GIFS_SUGGEST),query:\{q:(\i),provider:\(0,\i\.cf\)\(\),limit:5,locale:(\i\.default\.locale)\},oldFormErrors:!0,rejectWithError:!0\}\)/,
+                    replace: "$self.getSuggest($1,$2,$3,$4)"
+                },
+                {
+                    match: /(\i\.Bo)\.get\(\{url:(\i\.Rsh\.GIFS_TRENDING),query:\{provider:\(0,\i\.cf\)\(\),locale:(\i\.default\.locale),media_format:(\i\.A\.getSelectedFormat\(\))\},oldFormErrors:!0,rejectWithError:!0\}\)/,
+                    replace: "$self.getTrending($1,$2,$3,$4)"
+                },
+                {
+                    match: /(\i\.Bo)\.get\(\{url:(\i\.Rsh\.GIFS_TRENDING_GIFS),query:\{media_format:(\i\.A\.getSelectedFormat\(\)),provider:\(0,\i\.cf\)\(\),locale:(\i\.default\.locale),limit:(\i)\},oldFormErrors:!0,rejectWithError:!0\}\)/,
+                    replace: "$self.getTrendingGifs($1,$2,$3,$4,$5)"
+                },
+                {
+                    match: /(\i\.Bo)\.post\(\{url:(\i\.Rsh\.GIFS_SELECT),body:\{id:(\i),q:(\i),provider:(\i)\},oldFormErrors:!0,rejectWithError:!0\}\)/,
+                    replace: "$self.selectGif($1,$2,$3,$4,$5)"
+                },
+                {
+                    match: /\(0,\i\.cf\)\(\)/g,
+                    replace: "$self.getProvider()"
+                }
+            ]
+        },
+
+        // patch 4: intercept Discord REST GIF requests before XHR is created
+        {
+            find: "makeRequest: queueing request",
+            replacement: {
+                match: /function (\i)\((\i),(\i),(\i)\)\{return new Promise\(\((\i),(\i)\)=>\{"string"==typeof \3&&\(\3=\{url:\3,rejectWithError:!1\}\);let (\i)=(\i)\.get\(\3\.url\);if\(null!=\7&&\3\.failImmediatelyWhenRateLimited\)/,
+                replace: "function $1($2,$3,$4){return new Promise(($5,$6)=>{\"string\"==typeof $3&&($3={url:$3,rejectWithError:!1});let $gifProviderResponse=$self.handleGifRequest($2,$3,$4);if($gifProviderResponse)return void $gifProviderResponse.then($5,$6);let $7=$8.get($3.url);if(null!=$7&&$3.failImmediatelyWhenRateLimited)"
+            }
         }
     ],
 
@@ -264,13 +238,143 @@ export default definePlugin({
         return <HeaderWrapper searchBar={searchBarElement} instance={instance} />;
     },
 
-    start() {
-        patchFetch();
-        patchXHR();
+    getProvider(): Provider {
+        return getProvider();
     },
 
-    stop() {
-        unpatchFetch();
-        unpatchXHR();
+    getSearch(rest: RestApi, url: string, query: string, mediaFormat: string, locale: string, limit?: number) {
+        const provider = getProvider();
+
+        if (provider !== providers.tenor) {
+            return rest.get({
+                url,
+                query: { q: query, media_format: mediaFormat, provider, locale, limit },
+                oldFormErrors: true,
+                rejectWithError: true
+            });
+        }
+
+        return asRestResponse(Tenor.search(query, mediaFormat, locale, toLimit(limit)));
+    },
+
+    getSuggest(rest: RestApi, url: string, query: string, locale: string) {
+        const provider = getProvider();
+
+        if (provider !== providers.tenor) {
+            return rest.get({
+                url,
+                query: { q: query, provider, limit: 5, locale },
+                oldFormErrors: true,
+                rejectWithError: true
+            });
+        }
+
+        return asRestResponse(Tenor.suggestions(query, locale, 5));
+    },
+
+    getTrending(rest: RestApi, url: string, locale: string, mediaFormat: string) {
+        const provider = getProvider();
+
+        if (provider !== providers.tenor) {
+            return rest.get({
+                url,
+                query: { provider, locale, media_format: mediaFormat },
+                oldFormErrors: true,
+                rejectWithError: true
+            });
+        }
+
+        return asRestResponse(Tenor.trending(mediaFormat, locale));
+    },
+
+    getTrendingGifs(rest: RestApi, url: string, mediaFormat: string, locale: string, limit?: number) {
+        const provider = getProvider();
+
+        if (provider !== providers.tenor) {
+            return rest.get({
+                url,
+                query: { media_format: mediaFormat, provider, locale, limit },
+                oldFormErrors: true,
+                rejectWithError: true
+            });
+        }
+
+        return asRestResponse(Tenor.featuredGifs(mediaFormat, locale, toLimit(limit)));
+    },
+
+    // ik this is scuffed asf but it works somehow
+    handleGifRequest(_method: string, request: RestRequest, onComplete?: RestComplete) {
+        const route = String(request.url ?? "").match(/\/gifs\/(?:trending-search|trending-gifs|trending|search|suggest|select)(?=$|[?#])/)?.[0] ?? null;
+        if (!route) return null;
+
+        const provider = getProvider();
+
+        if (provider !== providers.tenor) {
+            request.query = { ...request.query, provider };
+            if (request.body?.provider != null) request.body = { ...request.body, provider };
+            return null;
+        }
+
+        const mediaFormat = getRestQueryString(request.query, "media_format", "webm");
+        const locale = getRestQueryString(request.query, "locale", navigator.language || "en-US");
+        const rawLimit = request.query?.limit;
+        let limit = 100;
+
+        if (typeof rawLimit === "number") {
+            limit = rawLimit;
+        } else if (typeof rawLimit === "string") {
+            const parsedLimit = Number(rawLimit);
+            if (Number.isFinite(parsedLimit)) limit = parsedLimit;
+        }
+
+        let response: Promise<RestResponse>;
+
+        switch (route) {
+            case "/gifs/search":
+                response = asRestResponse(Tenor.search(getRestQueryString(request.query, "q"), mediaFormat, locale, limit));
+                break;
+            case "/gifs/trending":
+                response = asRestResponse(Tenor.trending(mediaFormat, locale));
+                break;
+            case "/gifs/trending-gifs":
+                response = asRestResponse(Tenor.featuredGifs(mediaFormat, locale, limit));
+                break;
+            case "/gifs/suggest":
+                response = asRestResponse(Tenor.suggestions(getRestQueryString(request.query, "q"), locale, limit));
+                break;
+            case "/gifs/trending-search":
+                response = asRestResponse(
+                    Tenor.categories(locale, limit).then(categories => categories.map(({ name }) => name).filter(Boolean))
+                );
+                break;
+            case "/gifs/select":
+                response = asRestResponse(Tenor.recordShare(
+                    getRestQueryString(request.body, "id"),
+                    getRestQueryString(request.body, "q")
+                ).then(() => null));
+                break;
+            default:
+                return null;
+        }
+
+        return response.then(
+            res => {
+                onComplete?.({ ...res, hasErr: false });
+                return res;
+            }
+        );
+    },
+
+    selectGif(rest: RestApi, url: string, id: string, query: string, provider: Provider) {
+        if (getProvider() !== providers.tenor) {
+            return rest.post({
+                url,
+                body: { id, q: query, provider },
+                oldFormErrors: true,
+                rejectWithError: true
+            });
+        }
+
+        return Tenor.recordShare(id, query).then(() => makeRestResponse(null));
     }
 });

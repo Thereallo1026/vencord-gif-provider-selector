@@ -1,0 +1,50 @@
+/*
+ * Vencord userplugin
+ * Copyright (c) 2026 Thereallo
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ */
+
+export interface TenorMediaFormat {
+    url: string;
+    duration?: number;
+    preview?: string;
+    dims?: [number, number];
+    size?: number;
+}
+
+export interface TenorResult {
+    id: string;
+    title?: string;
+    content_description?: string;
+    itemurl?: string;
+    url?: string;
+    media_formats: Record<string, TenorMediaFormat | undefined>;
+}
+
+export interface TenorSearchResponse {
+    results?: TenorResult[];
+    next?: string;
+}
+
+export interface TenorCategory {
+    searchterm?: string;
+    name?: string;
+    image?: string;
+}
+
+export interface TenorCategoriesResponse {
+    tags?: TenorCategory[];
+}
+
+export interface DiscordGif {
+    id: string;
+    title: string;
+    url: string;
+    src: string;
+    gif_src: string;
+    preview: string;
+    width: number;
+    height: number;
+    format?: string;
+    order?: number;
+}
