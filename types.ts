@@ -45,5 +45,3 @@ export interface RestResponse<T = unknown> {
     status: number;
     text: string;
 }
-
-export type RestComplete = (response: RestResponse & { hasErr: boolean; }) => void;

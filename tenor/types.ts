@@ -12,13 +12,15 @@ export interface TenorMediaFormat {
     size?: number;
 }
 
+export type TenorMediaRecord = Record<string, TenorMediaFormat | undefined>;
+
 export interface TenorResult {
     id: string;
     title?: string;
     content_description?: string;
     itemurl?: string;
     url?: string;
-    media_formats: Record<string, TenorMediaFormat | undefined>;
+    media?: TenorMediaRecord[];
 }
 
 export interface TenorSearchResponse {

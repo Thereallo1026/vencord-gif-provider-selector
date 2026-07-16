@@ -2,22 +2,21 @@
 
 A Vencord userplugin that adds a dropdown to the GIF picker, allowing you to switch between Tenor, Giphy, and Klipy as your GIF search provider.
 
-> [!IMPORTANT]
-> This plugin calls an external API hosted by me ([thereallo](https://github.com/Thereallo1026)) at [`api.thereallo.dev`](https://api.thereallo.dev). When Tenor mode is selected, GIF search, trending, suggestions, and related requests are sent to that service instead of Discord's default endpoints.
->
-> The plugin source code in this repository is open source, but the API source code is private for privacy and operational reasons. If you do not trust the results returned by my API, do not use this plugin.
-
 ## Why this plugin exists
 
-Discord moved its GIF picker away from Tenor and toward Klipy. This plugin restores Tenor results by calling my personal tenor API proxy and adapting the proxied Tenor response into Discord's GIF picker format.
+Discord removed Tenor as GIF provider and moved to Klipy. This plugin restores Tenor results by calling Tenor's public v1 keyboard API directly for GIF search results.
 
-Giphy and Klipy still use Discord's GIF endpoints with the selected provider parameter. Tenor mode uses proxied endpoints for search, trending GIFs, trending categories, search suggestions, trending search terms, and selection tracking.
+Giphy and Klipy still use Discord's GIF endpoints with the selected provider parameter. Tenor mode calls Tenor directly for search, trending GIFs, trending categories, search suggestions, and trending search terms.
+
+> [!NOTE]
+> when you pick a GIF in Tenor mode, the plugin does **not** report the selection to Tenor's share-tracking endpoint (`/registershare`) on purpose.
 
 ## Features
 
 - Adds a provider selector dropdown next to the search bar in the GIF picker
 - Switch between Tenor, Giphy, and Klipy on the fly
-- Restores Tenor API
+- Restores Tenor results via Tenor's own public API.
+- Skips Tenor share tracking when sharing a GIF
 - Your selection persists across sessions
 
 ## Installation
@@ -62,7 +61,7 @@ pnpm inject
 
 Patch your Discord install with the Vencord installer when it opens.
 
-5. Fully quit and reopen Discord so the API proxy CSP rule is applied to the main frame.
+5. Fully quit and reopen Discord so the Tenor API CSP rule is applied to the main frame.
 
 6. Enable **GifProviderSelector** in Vencord settings under Plugins.
 

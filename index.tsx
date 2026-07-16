@@ -12,7 +12,7 @@ import definePlugin, { OptionType } from "@utils/types";
 import { type React, Select, useEffect } from "@webpack/common";
 
 import * as Tenor from "./tenor";
-import type { GifPickerInstance, Provider, RestApi, RestComplete, RestRequest, RestResponse, WrapperProps } from "./types";
+import type { GifPickerInstance, Provider, RestApi, RestResponse, WrapperProps } from "./types";
 
 // consts
 export const providers = {
@@ -124,11 +124,6 @@ function toLimit(limit: unknown): number | undefined {
     return typeof limit === "number" ? limit : undefined;
 }
 
-function getRestQueryString(query: Record<string, unknown> | undefined, key: string, fallback = ""): string {
-    const value = query?.[key];
-    return typeof value === "string" ? value : fallback;
-}
-
 function asRestResponse<T>(promise: Promise<T>): Promise<RestResponse<T>> {
     return promise.then(makeRestResponse);
 }
@@ -218,19 +213,15 @@ export default definePlugin({
                     replace: "$self.selectGif($1,$2,$3,$4,$5)"
                 },
                 {
+                    // lookaheads tolerate query property-order variation; limit may be an identifier or a literal
+                    match: /(\i\.Bo)\.get\(\{url:(\i\.Rsh\.GIFS_TRENDING_SEARCH),query:\{(?=[^}]*locale:(\i\.default\.locale))(?=[^}]*limit:(\i|\d+))[^}]*\},oldFormErrors:!0,rejectWithError:!0\}\)/,
+                    replace: "$self.getTrendingSearch($1,$2,$3,$4)"
+                },
+                {
                     match: /\(0,\i\.cf\)\(\)/g,
                     replace: "$self.getProvider()"
                 }
             ]
-        },
-
-        // patch 4: intercept Discord REST GIF requests before XHR is created
-        {
-            find: "makeRequest: queueing request",
-            replacement: {
-                match: /function (\i)\((\i),(\i),(\i)\)\{return new Promise\(\((\i),(\i)\)=>\{"string"==typeof \3&&\(\3=\{url:\3,rejectWithError:!1\}\);let (\i)=(\i)\.get\(\3\.url\);if\(null!=\7&&\3\.failImmediatelyWhenRateLimited\)/,
-                replace: "function $1($2,$3,$4){return new Promise(($5,$6)=>{\"string\"==typeof $3&&($3={url:$3,rejectWithError:!1});let $gifProviderResponse=$self.handleGifRequest($2,$3,$4);if($gifProviderResponse)return void $gifProviderResponse.then($5,$6);let $7=$8.get($3.url);if(null!=$7&&$3.failImmediatelyWhenRateLimited)"
-            }
         }
     ],
 
@@ -302,65 +293,19 @@ export default definePlugin({
         return asRestResponse(Tenor.featuredGifs(mediaFormat, locale, toLimit(limit)));
     },
 
-    // ik this is scuffed asf but it works somehow
-    handleGifRequest(_method: string, request: RestRequest, onComplete?: RestComplete) {
-        const route = String(request.url ?? "").match(/\/gifs\/(?:trending-search|trending-gifs|trending|search|suggest|select)(?=$|[?#])/)?.[0] ?? null;
-        if (!route) return null;
-
+    getTrendingSearch(rest: RestApi, url: string, locale: string, limit?: number) {
         const provider = getProvider();
 
         if (provider !== providers.tenor) {
-            request.query = { ...request.query, provider };
-            if (request.body?.provider != null) request.body = { ...request.body, provider };
-            return null;
+            return rest.get({
+                url,
+                query: { provider, locale, limit },
+                oldFormErrors: true,
+                rejectWithError: true
+            });
         }
 
-        const mediaFormat = getRestQueryString(request.query, "media_format", "webm");
-        const locale = getRestQueryString(request.query, "locale", navigator.language || "en-US");
-        const rawLimit = request.query?.limit;
-        let limit = 100;
-
-        if (typeof rawLimit === "number") {
-            limit = rawLimit;
-        } else if (typeof rawLimit === "string") {
-            const parsedLimit = Number(rawLimit);
-            if (Number.isFinite(parsedLimit)) limit = parsedLimit;
-        }
-
-        let response: Promise<RestResponse>;
-
-        switch (route) {
-            case "/gifs/search":
-                response = asRestResponse(Tenor.search(getRestQueryString(request.query, "q"), mediaFormat, locale, limit));
-                break;
-            case "/gifs/trending":
-                response = asRestResponse(Tenor.trending(mediaFormat, locale));
-                break;
-            case "/gifs/trending-gifs":
-                response = asRestResponse(Tenor.featuredGifs(mediaFormat, locale, limit));
-                break;
-            case "/gifs/suggest":
-                response = asRestResponse(Tenor.suggestions(getRestQueryString(request.query, "q"), locale, limit));
-                break;
-            case "/gifs/trending-search":
-                response = asRestResponse(
-                    Tenor.categories(locale, limit).then(categories => categories.map(({ name }) => name).filter(Boolean))
-                );
-                break;
-            case "/gifs/select":
-                // share tracking is not proxied, just acknowledge req
-                response = Promise.resolve(makeRestResponse(null));
-                break;
-            default:
-                return null;
-        }
-
-        return response.then(
-            res => {
-                onComplete?.({ ...res, hasErr: false });
-                return res;
-            }
-        );
+        return asRestResponse(Tenor.trendingTerms(locale, toLimit(limit)));
     },
 
     selectGif(rest: RestApi, url: string, id: string, query: string, provider: Provider) {
@@ -373,6 +318,7 @@ export default definePlugin({
             });
         }
 
+        // intentional privacy choice: don't report gif picks to tenor's /registershare, just acknowledge locally
         return Promise.resolve(makeRestResponse(null));
     }
 });

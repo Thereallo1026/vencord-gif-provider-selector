@@ -6,5 +6,5 @@
 
 import { ConnectSrc, CspPolicies, ImageSrc } from "@main/csp";
 
-CspPolicies["api.thereallo.dev"] = ConnectSrc;
+CspPolicies["api.tenor.com"] = ConnectSrc;
 CspPolicies["media.tenor.com"] = ImageSrc;
