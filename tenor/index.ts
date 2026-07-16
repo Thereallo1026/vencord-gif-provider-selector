@@ -46,13 +46,6 @@ function normalizeLocale(locale: unknown): string {
     return String(locale || fallback).replace("-", "_");
 }
 
-function normalizeMediaFormat(format: unknown): string {
-    const normalized = String(format || "webm");
-    return normalized === "webp" || normalized === "gif" || normalized === "mp4" || normalized === "webm"
-        ? normalized
-        : "webm";
-}
-
 function getAnonId(): string {
     try {
         const stored = localStorage.getItem(anonIdStorageKey);
@@ -70,7 +63,7 @@ function getAnonId(): string {
     return anonId;
 }
 
-function makeApiUrl(path: string, params: Record<string, number | string | undefined>): string {
+async function request<T>(path: string, params: Record<string, number | string | undefined>): Promise<T> {
     const url = new URL(`${apiBase}${path}`);
 
     url.searchParams.set("key", apiKey);
@@ -80,63 +73,45 @@ function makeApiUrl(path: string, params: Record<string, number | string | undef
         if (value != null && value !== "") url.searchParams.set(key, String(value));
     }
 
-    return url.toString();
-}
-
-async function request<T>(path: string, params: Record<string, number | string | undefined>): Promise<T> {
-    const response = await fetch(makeApiUrl(path, params));
+    const response = await fetch(url);
     if (!response.ok) throw new Error(`Tenor req failed with status ${response.status}`);
     return response.json();
 }
 
-// v1 results carry formats as array containing formatName -> media record
-function getMediaRecord(result: TenorResult): TenorMediaRecord {
-    return Object.assign({}, ...(result.media ?? []));
-}
-
-function firstFormat(media: TenorMediaRecord, keys: readonly string[]): PickedFormat | undefined {
-    for (const key of keys) {
+function pickFormat(media: TenorMediaRecord, formats: readonly string[]): PickedFormat | undefined {
+    for (const key of formats) {
         const format = media[key];
+        if (format?.url) return { key, media: format };
+    }
+
+    for (const [key, format] of Object.entries(media)) {
         if (format?.url) return { key, media: format };
     }
 
     return undefined;
 }
 
-function pickFallbackFormat(media: TenorMediaRecord): PickedFormat | undefined {
-    const fallback = Object.entries(media).find((entry): entry is [string, TenorMediaFormat] => entry[1]?.url != null);
-
-    if (!fallback) return undefined;
-
-    const [key, format] = fallback;
-    return { key, media: format };
-}
-
-function pickFormat(media: TenorMediaRecord, format: string): PickedFormat | undefined {
-    return firstFormat(media, [format, ...videoFormats])
-        ?? firstFormat(media, transparentGifFormats)
-        ?? firstFormat(media, ["gif", "mediumgif", "tinygif", "webp"])
-        ?? pickFallbackFormat(media);
-}
-
-function pickGifFormat(media: TenorMediaRecord): PickedFormat | undefined {
-    return firstFormat(media, transparentGifFormats)
-        ?? firstFormat(media, ["gif", "mediumgif", "tinygif", "nanogif"])
-        ?? pickFormat(media, "gif");
-}
-
-function toDiscordFormat(format: string): string {
-    if (format.includes("webp")) return "webp";
-    if (format.includes("mp4")) return "mp4";
-    if (format.includes("webm")) return "webm";
-
-    return "gif";
-}
-
 function toDiscordGif(result: TenorResult, order: number, format: string): DiscordGif | null {
-    const media = getMediaRecord(result);
-    const selected = pickFormat(media, format);
-    const gif = pickGifFormat(media);
+    // v1 results carry formats as an array of format-name records
+    const media: TenorMediaRecord = Object.assign({}, ...(result.media ?? []));
+    const selected = pickFormat(media, [
+        format,
+        ...videoFormats,
+        ...transparentGifFormats,
+        "gif",
+        "mediumgif",
+        "tinygif",
+        "webp"
+    ]);
+    const gif = pickFormat(media, [
+        ...transparentGifFormats,
+        "gif",
+        "mediumgif",
+        "tinygif",
+        "nanogif",
+        ...videoFormats,
+        "webp"
+    ]);
     if (!selected) return null;
 
     const [width, height] = selected.media.dims ?? gif?.media.dims ?? [0, 0];
@@ -159,13 +134,15 @@ function toDiscordGif(result: TenorResult, order: number, format: string): Disco
         preview,
         width,
         height,
-        format: toDiscordFormat(selected.key),
+        format: selected.key.match(/webp|mp4|webm/)?.[0] ?? "gif",
         order
     };
 }
 
 async function gifList(path: "/search" | "/trending", query: string | undefined, mediaFormat: string, locale: string, limit: number | undefined): Promise<DiscordGif[]> {
-    const selectedFormat = normalizeMediaFormat(mediaFormat);
+    const selectedFormat = mediaFormat === "webp" || mediaFormat === "gif" || mediaFormat === "mp4" || mediaFormat === "webm"
+        ? mediaFormat
+        : "webm";
     const data = await request<TenorSearchResponse>(path, {
         locale: normalizeLocale(locale),
         contentfilter: "low",
