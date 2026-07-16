@@ -4,7 +4,8 @@
  * SPDX-License-Identifier: AGPL-3.0-or-later
  */
 
-import type { DiscordGif, TenorCategoriesResponse, TenorMediaFormat, TenorMediaRecord, TenorResult, TenorSearchResponse } from "./types";
+import type { DiscordGif } from "../types";
+import type { TenorCategoriesResponse, TenorMediaFormat, TenorMediaRecord, TenorResult, TenorSearchResponse } from "./types";
 
 const apiBase = "https://api.tenor.com/v1";
 const apiKey = "3Z0688EVWYKH";
@@ -182,7 +183,7 @@ export function search(query: string, mediaFormat: string, locale: string, limit
     return gifList("/search", query, mediaFormat, locale, limit);
 }
 
-export function featuredGifs(mediaFormat: string, locale: string, limit?: number): Promise<DiscordGif[]> {
+export function featured(mediaFormat: string, locale: string, limit?: number): Promise<DiscordGif[]> {
     return gifList("/trending", undefined, mediaFormat, locale, limit);
 }
 

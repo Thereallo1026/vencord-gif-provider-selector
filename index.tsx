@@ -11,6 +11,7 @@ import ErrorBoundary from "@components/ErrorBoundary";
 import definePlugin, { OptionType } from "@utils/types";
 import { type React, Select, useEffect } from "@webpack/common";
 
+import * as Giphy from "./giphy";
 import * as Tenor from "./tenor";
 import type { GifPickerInstance, Provider, RestApi, RestResponse, WrapperProps } from "./types";
 
@@ -133,26 +134,6 @@ export default definePlugin({
     description: "Adds a dropdown to select between Giphy, Klipy, and Tenor for GIF searches",
     authors: [{ name: "Thereallo", id: 896388612764090448n }],
     settings,
-
-    /**
-     * Patches to inject our component into the GIF picker header.
-     *
-     * Based on Discord's GIF picker header code:
-     *
-     * renderHeaderContent(){
-     *   ...
-     *   default:{
-     *     let t=(0,m.cf)(),n=(0,h.w)(t);
-     *     return(0,r.jsx)(l.IWV,{query:e,onChange:this.handleChangeQuery,
-     *            onClear:this.handleClearQuery,placeholder:n,"aria-label":n,
-     *            ref:this.props.searchBarRef,autoFocus:!0})
-     *   }
-     * }
-     *
-     * Discord changes the mangled component name and occasionally inserts
-     * extra props, so the injection matches the search-bar props instead of a
-     * specific component export or final prop.
-     */
     patches: [
         // patch 1: change placeholder
         {
@@ -236,80 +217,75 @@ export default definePlugin({
     getSearch(rest: RestApi, url: string, query: string, mediaFormat: string, locale: string, limit?: number) {
         const provider = getProvider();
 
-        if (provider !== providers.tenor) {
-            return rest.get({
-                url,
-                query: { q: query, media_format: mediaFormat, provider, locale, limit },
-                oldFormErrors: true,
-                rejectWithError: true
-            });
-        }
+        if (provider === providers.tenor) return asRestResponse(Tenor.search(query, mediaFormat, locale, toLimit(limit)));
+        if (provider === providers.giphy) return asRestResponse(Giphy.search(query, mediaFormat, locale, toLimit(limit)));
 
-        return asRestResponse(Tenor.search(query, mediaFormat, locale, toLimit(limit)));
+        return rest.get({
+            url,
+            query: { q: query, media_format: mediaFormat, provider, locale, limit },
+            oldFormErrors: true,
+            rejectWithError: true
+        });
     },
 
     getSuggest(rest: RestApi, url: string, query: string, locale: string) {
         const provider = getProvider();
 
-        if (provider !== providers.tenor) {
-            return rest.get({
-                url,
-                query: { q: query, provider, limit: 5, locale },
-                oldFormErrors: true,
-                rejectWithError: true
-            });
-        }
+        if (provider === providers.tenor) return asRestResponse(Tenor.suggestions(query, locale, 5));
+        if (provider === providers.giphy) return asRestResponse(Giphy.suggestions(query, 5));
 
-        return asRestResponse(Tenor.suggestions(query, locale, 5));
+        return rest.get({
+            url,
+            query: { q: query, provider, limit: 5, locale },
+            oldFormErrors: true,
+            rejectWithError: true
+        });
     },
 
     getTrending(rest: RestApi, url: string, locale: string, mediaFormat: string) {
         const provider = getProvider();
 
-        if (provider !== providers.tenor) {
-            return rest.get({
-                url,
-                query: { provider, locale, media_format: mediaFormat },
-                oldFormErrors: true,
-                rejectWithError: true
-            });
-        }
+        if (provider === providers.tenor) return asRestResponse(Tenor.trending(mediaFormat, locale));
+        if (provider === providers.giphy) return asRestResponse(Giphy.trending(mediaFormat, locale));
 
-        return asRestResponse(Tenor.trending(mediaFormat, locale));
+        return rest.get({
+            url,
+            query: { provider, locale, media_format: mediaFormat },
+            oldFormErrors: true,
+            rejectWithError: true
+        });
     },
 
     getTrendingGifs(rest: RestApi, url: string, mediaFormat: string, locale: string, limit?: number) {
         const provider = getProvider();
 
-        if (provider !== providers.tenor) {
-            return rest.get({
-                url,
-                query: { media_format: mediaFormat, provider, locale, limit },
-                oldFormErrors: true,
-                rejectWithError: true
-            });
-        }
+        if (provider === providers.tenor) return asRestResponse(Tenor.featured(mediaFormat, locale, toLimit(limit)));
+        if (provider === providers.giphy) return asRestResponse(Giphy.featured(mediaFormat, locale, toLimit(limit)));
 
-        return asRestResponse(Tenor.featuredGifs(mediaFormat, locale, toLimit(limit)));
+        return rest.get({
+            url,
+            query: { media_format: mediaFormat, provider, locale, limit },
+            oldFormErrors: true,
+            rejectWithError: true
+        });
     },
 
     getTrendingSearch(rest: RestApi, url: string, locale: string, limit?: number) {
         const provider = getProvider();
 
-        if (provider !== providers.tenor) {
-            return rest.get({
-                url,
-                query: { provider, locale, limit },
-                oldFormErrors: true,
-                rejectWithError: true
-            });
-        }
+        if (provider === providers.tenor) return asRestResponse(Tenor.trendingTerms(locale, toLimit(limit)));
+        if (provider === providers.giphy) return asRestResponse(Giphy.trendingTerms(toLimit(limit)));
 
-        return asRestResponse(Tenor.trendingTerms(locale, toLimit(limit)));
+        return rest.get({
+            url,
+            query: { provider, locale, limit },
+            oldFormErrors: true,
+            rejectWithError: true
+        });
     },
 
     selectGif(rest: RestApi, url: string, id: string, query: string, provider: Provider) {
-        if (getProvider() !== providers.tenor) {
+        if (getProvider() === providers.klipy) {
             return rest.post({
                 url,
                 body: { id, q: query, provider },
@@ -318,7 +294,7 @@ export default definePlugin({
             });
         }
 
-        // intentional privacy choice: don't report gif picks to tenor's /registershare, just acknowledge locally
+        // intentional privacy choice
         return Promise.resolve(makeRestResponse(null));
     }
 });

@@ -8,6 +8,19 @@ import type { providers } from ".";
 
 export type Provider = typeof providers[keyof typeof providers];
 
+export interface DiscordGif {
+    id: string;
+    title: string;
+    url: string;
+    src: string;
+    gif_src: string;
+    preview: string;
+    width: number;
+    height: number;
+    format?: string;
+    order?: number;
+}
+
 export interface GifPickerInstance {
     props: {
         query?: string;

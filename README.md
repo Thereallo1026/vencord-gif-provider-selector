@@ -4,19 +4,19 @@ A Vencord userplugin that adds a dropdown to the GIF picker, allowing you to swi
 
 ## Why this plugin exists
 
-Discord removed Tenor as GIF provider and moved to Klipy. This plugin restores Tenor results by calling Tenor's public v1 keyboard API directly for GIF search results.
+Discord removed Tenor as GIF provider and moved to Klipy. On top of that, Discord's GIF endpoints now ignore the `provider` parameter entirely and always return Klipy results, which silently broke Giphy too.
 
-Giphy and Klipy still use Discord's GIF endpoints with the selected provider parameter. Tenor mode calls Tenor directly for search, trending GIFs, trending categories, search suggestions, and trending search terms.
+This plugin restores Tenor and Giphy results by calling their public APIs directly for search, trending GIFs, trending categories, search suggestions, and trending search terms. Klipy still uses Discord's GIF endpoints.
 
 > [!NOTE]
-> when you pick a GIF in Tenor mode, the plugin does **not** report the selection to Tenor's share-tracking endpoint (`/registershare`) on purpose.
+> when you pick a GIF in Tenor or Giphy mode, the plugin does **not** report the selection to the provider's tracking endpoints (Tenor's `/registershare`, Giphy's pingback) on purpose. Tracking parameters on Giphy media URLs are stripped as well.
 
 ## Features
 
 - Adds a provider selector dropdown next to the search bar in the GIF picker
 - Switch between Tenor, Giphy, and Klipy on the fly
-- Restores Tenor results via Tenor's own public API.
-- Skips Tenor share tracking when sharing a GIF
+- Restores Tenor and Giphy results via their own public APIs.
+- Skips Tenor and Giphy share tracking when sharing a GIF
 - Your selection persists across sessions
 
 ## Installation
@@ -61,7 +61,7 @@ pnpm inject
 
 Patch your Discord install with the Vencord installer when it opens.
 
-5. Fully quit and reopen Discord so the Tenor API CSP rule is applied to the main frame.
+5. Fully quit and reopen Discord so the Tenor and Giphy API CSP rules are applied to the main frame.
 
 6. Enable **GifProviderSelector** in Vencord settings under Plugins.
 

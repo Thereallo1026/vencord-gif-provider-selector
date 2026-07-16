@@ -37,16 +37,3 @@ export interface TenorCategory {
 export interface TenorCategoriesResponse {
     tags?: TenorCategory[];
 }
-
-export interface DiscordGif {
-    id: string;
-    title: string;
-    url: string;
-    src: string;
-    gif_src: string;
-    preview: string;
-    width: number;
-    height: number;
-    format?: string;
-    order?: number;
-}

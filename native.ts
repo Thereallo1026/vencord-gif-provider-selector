@@ -8,3 +8,6 @@ import { ConnectSrc, CspPolicies, ImageSrc } from "@main/csp";
 
 CspPolicies["api.tenor.com"] = ConnectSrc;
 CspPolicies["media.tenor.com"] = ImageSrc;
+
+CspPolicies["api.giphy.com"] = ConnectSrc;
+CspPolicies["*.giphy.com"] = ImageSrc;
